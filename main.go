@@ -8,6 +8,7 @@ import (
 	"github.com/bitrise-io/go-utils/v2/command"
 	"github.com/bitrise-io/go-utils/v2/env"
 	"github.com/bitrise-io/go-utils/v2/log"
+	"github.com/bitrise-io/go-utils/v2/pathutil"
 	"github.com/godrei/bitrise-step-xcode-test-without-building/step"
 	"github.com/godrei/bitrise-step-xcode-test-without-building/xcodebuild"
 )
@@ -26,18 +27,19 @@ func run() int {
 		return 1
 	}
 
+	exitCode := 0
 	result, err := step.Run(*config)
 	if err != nil {
-		logger.Errorf(err.Error())
-		return 1
+		logger.TErrorf(err.Error())
+		exitCode = 1
 	}
 
-	if err := step.ExportOutputs(*result); err != nil {
+	if err = step.ExportOutputs(*result); err != nil {
 		logger.Errorf(err.Error())
-		return 1
+		exitCode = 1
 	}
 
-	return 0
+	return exitCode
 }
 
 func createStep(logger log.Logger) step.Step {
@@ -45,7 +47,10 @@ func createStep(logger log.Logger) step.Step {
 	inputParser := stepconf.NewInputParser(osEnvs)
 	outputEnvStore := stepenv.NewRepository(osEnvs)
 	commandFactory := command.NewFactory(osEnvs)
-	xcodebuild := xcodebuild.New(commandFactory, logger)
+	pathProvider := pathutil.NewPathProvider()
+	pathChecker := pathutil.NewPathChecker()
+	xcodebuild := xcodebuild.New(logger, commandFactory, pathProvider, pathChecker)
+	outputExporter := step.NewOutputExporter()
 
-	return step.New(logger, inputParser, outputEnvStore, xcodebuild)
+	return step.New(logger, inputParser, xcodebuild, outputEnvStore, outputExporter)
 }
