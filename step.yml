@@ -32,3 +32,10 @@ inputs:
     title: Destination specifier
     summary: Destination specifier describing the device (or devices) to use as a destination.
     is_required: true
+
+- xcodebuild_options:
+  opts:
+    title: Additional options for the xcodebuild command
+    summary: Additional options to be added to the executed xcodebuild command.
+    description: |-
+      Additional options to be added to the executed xcodebuild command.

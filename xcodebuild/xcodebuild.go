@@ -8,7 +8,7 @@ import (
 )
 
 type Xcodebuild interface {
-	TestWithoutBuilding(xctestrun, destination string) error
+	TestWithoutBuilding(xctestrun, destination string, options ...string) error
 }
 
 type xcodebuild struct {
@@ -23,8 +23,11 @@ func New(commandFactory command.Factory, logger log.Logger) Xcodebuild {
 	}
 }
 
-func (x xcodebuild) TestWithoutBuilding(xctestrun, destination string) error {
-	cmd := x.commandFactory.Create("xcodebuild", []string{"test-without-building", "-xctestrun", xctestrun, "-destination", destination}, &command.Opts{
+func (x xcodebuild) TestWithoutBuilding(xctestrun, destination string, opts ...string) error {
+	options := []string{"test-without-building", "-xctestrun", xctestrun, "-destination", destination}
+	options = append(options, opts...)
+
+	cmd := x.commandFactory.Create("xcodebuild", options, &command.Opts{
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	})
