@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/bitrise-io/go-steputils/v2/stepconf"
 	"github.com/bitrise-io/go-utils/v2/env"
@@ -23,6 +24,7 @@ type Input struct {
 	Destination       string `env:"destination,required"`
 	XcodebuildOptions string `env:"xcodebuild_options"`
 	DeployDir         string `env:"BITRISE_DEPLOY_DIR"`
+	TestingAddonDir   string `env:"BITRISE_TEST_RESULT_DIR"`
 }
 
 type Config struct {
@@ -30,11 +32,13 @@ type Config struct {
 	Destination       string
 	XcodebuildOptions []string
 	DeployDir         string
+	TestingAddonDir   string
 }
 
 type Result struct {
-	TestOutputDir string
-	DeployDir     string
+	TestOutputDir   string
+	DeployDir       string
+	TestingAddonDir string
 }
 
 type Step struct {
@@ -73,6 +77,7 @@ func (s Step) ProcessConfig() (*Config, error) {
 		Destination:       input.Destination,
 		XcodebuildOptions: xcodebuildOptions,
 		DeployDir:         input.DeployDir,
+		TestingAddonDir:   input.TestingAddonDir,
 	}, nil
 }
 
@@ -85,7 +90,8 @@ func (s Step) Run(config Config) (*Result, error) {
 	s.logger.Infof("Running tests:")
 
 	result := &Result{
-		DeployDir: config.DeployDir,
+		DeployDir:       config.DeployDir,
+		TestingAddonDir: config.TestingAddonDir,
 	}
 
 	outputDir, err := s.xcodebuild.TestWithoutBuilding(config.Xctestrun, config.Destination, config.XcodebuildOptions...)
@@ -111,15 +117,27 @@ func (s Step) ExportOutputs(result Result) error {
 	if result.TestOutputDir != "" {
 		if err := s.outputEnvStore.Set(testResultBundleKey, result.TestOutputDir); err != nil {
 			s.logger.Warnf("Failed to export: %s: %s", testResultBundleKey, err)
+		} else {
+			s.logger.Donef("%s: %s", testResultBundleKey, result.TestOutputDir)
 		}
-		s.logger.Donef("%s: %s", testResultBundleKey, result.TestOutputDir)
 
 		if result.DeployDir != "" {
 			xcresultZipPath := filepath.Join(result.DeployDir, filepath.Base(result.TestOutputDir)+".zip")
 			if err := s.outputExporter.ZipAndExportOutput(result.TestOutputDir, xcresultZipPath, zippedTestResultBundleKey); err != nil {
 				s.logger.Warnf("Failed to export: %s: %s", zippedTestResultBundleKey, err)
+			} else {
+				s.logger.Donef("%s: %s", zippedTestResultBundleKey, xcresultZipPath)
 			}
-			s.logger.Donef("%s: %s", zippedTestResultBundleKey, xcresultZipPath)
+		}
+
+		if result.TestingAddonDir != "" {
+			testName := strings.TrimSuffix(filepath.Base(result.TestOutputDir), filepath.Ext(result.TestOutputDir))
+
+			if err := s.outputExporter.CopyAndSaveTestData(result.TestOutputDir, result.TestingAddonDir, testName); err != nil {
+				s.logger.Warnf("Testing addon export failed: %s", err)
+			} else {
+				s.logger.Donef("Test result bundle moved to the testing addon dir: %s", result.TestingAddonDir)
+			}
 		}
 	}
 	return nil
